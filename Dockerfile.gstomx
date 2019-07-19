@@ -1,0 +1,86 @@
+FROM aarch64/ubuntu:14.04 as l4t-sources
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN \
+  apt-get update && apt-get install -y \
+  wget \
+  cmake \
+  bzip2 \
+  build-essential \
+  xorg \
+  xinit \
+  libglew-dev \
+  libtiff5-dev \
+  libboost-all-dev \
+  zlib1g-dev \
+  libjpeg-dev \
+  libpng12-dev \
+  libjasper-dev \
+  libavcodec-dev \
+  libavformat-dev \
+  libavutil-dev \
+  libpostproc-dev \
+  libswscale-dev \
+  libeigen3-dev \
+  libtbb-dev \
+  autoconf \
+  automake \
+  autopoint \
+  autotools-dev \
+  gtk-doc-tools \
+  libegl1-mesa-dev \
+  libgles2-mesa-dev \
+  libgtk2.0-dev \
+  libtool \
+  libx11-dev \
+  libxext-dev \
+  pkg-config \
+  gstreamer1.0-tools \
+  gstreamer1.0-alsa \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  libgstreamer-plugins-good1.0-dev \
+  libgstreamer-plugins-bad1.0-dev \
+  libgstreamer1.0-dev \
+  libgstreamer-plugins-base1.0-dev
+
+RUN \
+  wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/3.2.1/m8u2ki/JetPackL4T_321_b23/Tegra186_Linux_R28.2.1_aarch64.tbz2 && \
+  tar -xf Tegra186_Linux_R28.2.1_aarch64.tbz2 && \
+  ./Linux_for_Tegra/apply_binaries.sh -r / && \
+  rm Tegra186_Linux_R28.2.1_aarch64.tbz2
+
+RUN \
+  echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && ldconfig
+
+# The sources link is obtained from https://devtalk.nvidia.com/default/topic/1023695/jetson-tx2/how-to-compile-gstomx-for-tx2-/post/5208164/#5208164
+ARG SourcesLink="https://developer.nvidia.com/embedded/dlc/l4t-sources-28-2"
+
+RUN \
+  wget ${SourcesLink} && tar xf l4t-sources-28-2 && \
+  cd public_release/ && tar xf gstegl_src.tbz2 \
+  && tar xf gstomx1_src.tbz2 && \
+  cd gstegl_src/gst-egl/ && \
+  ./configure && \
+  make -j16 && \
+  make install && \
+  cd ../../gstomx1_src/gst-omx1/ && \
+  export NOCONFIGURE=true && \
+  export GST_EGL_LIBS="-lgstnvegl-1.0 -lEGL -lX11 -lgstreamer-1.0 -lgobject-2.0 -lglib-2.0" && \
+  ln -s /usr/lib/aarch64-linux-gnu/libgstnvegl-1.0.so.0 /usr/lib/aarch64-linux-gnu/libgstnvegl-1.0.so && \
+  ./autogen.sh && \
+  ./configure --with-omx-target=tegra && \
+  make -j16 && make install && cd / && \
+  rm -rf public_release && rm l4t-sources-28-2
+
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra
+ENV GST_PLUGIN_PATH=/usr/local/lib/gstreamer-1.0/
+
+ENV UDEV=1
+ENV INITSYSTEM on
+
+CMD ["bash"]
