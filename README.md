@@ -1,6 +1,10 @@
 README
 ------
 
+Important: For Jetpack 4.2.1 - L4T 32.2 please see and use the instructions and Dockerfile from TX2_Jetpack_4.2.1 directory
+
+------
+
 Add BalenaOS application to this repository and execute:
 $ git push balena master
 
