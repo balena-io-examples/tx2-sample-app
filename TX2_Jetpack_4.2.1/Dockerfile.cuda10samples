@@ -1,0 +1,49 @@
+FROM balenalib/jetson-tx2-ubuntu:bionic-run as builder
+
+ENV DEBIAN_FRONTEND noninteractive
+
+# This file corresponds to Jetpack 4.2.1 TX2 and is downloaded
+# by the NVidia SDK Manager. It's default path is in
+# ~/Downloads/nvidia/sdkm_downloads and it needs
+# to be copied near this Dockerfile
+COPY ./cuda-repo-l4t-10-0-local-10.0.326_1.0-1_arm64.deb ./cuda-repo-l4t-10-0-local-10.0.326_1.0-1_arm64.deb
+
+RUN \
+  apt-get update && \
+  apt-get install --no-install-recommends -y \
+  lbzip2 wget tar build-essential && \
+  wget https://developer.nvidia.com/embedded/dlc/Jetson_Linux_R32.2.0-0 && \
+  tar xf Jetson_Linux_R32.2.0-0 && rm Jetson_Linux_R32.2.0-0
+
+RUN dpkg -i cuda-repo-l4t-10-0-local-10.0.326_1.0-1_arm64.deb && \
+    apt-key add /var/cuda-repo-10-0-local-10.0.326/*.pub && \
+    apt-get update && apt-get install -y \
+    cuda-toolkit-10-0 cuda-samples-10-0 && \
+    cd /usr/local/cuda-10.0/samples && \
+    export SMS=62 && \
+    make -j32
+
+FROM balenalib/jetson-tx2-ubuntu:bionic-run as final
+
+# This includes built sample apps and sample data. To remove
+# these samples an  data to get a smaller image, delete the
+# samples instead of calling make on them in the step above.
+COPY --from=builder /usr/local/cuda-10.0/ /usr/local/cuda-10.0/
+COPY --from=builder /Linux_for_Tegra /tmp/Linux_for_Tegra
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN \
+    apt-get update && \
+    apt-get install -y --no-install-recommends xorg lbzip2 freeglut3-dev && \
+    cd /tmp/Linux_for_Tegra && \
+    sed -i 's/tar -I lbzip2 -xpmf ${LDK_NV_TEGRA_DIR}\/config.tbz2/& \-\-exclude=etc\/hosts \-\-exclude=etc\/hostname/' apply_binaries.sh && \
+    ./apply_binaries.sh -r / && \
+    cd / && \
+    rm -rf /tmp/Linux_for_Tegra && \
+    echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && \
+    echo "/usr/local/cuda-10.0/targets/aarch64-linux/lib" > /etc/ld.so.conf.d/cuda-10-0.conf && \
+    echo -e "/usr/local/lib/aarch64-linux-gnu \n /lib/aarch64-linux-gnu \n /usr/lib/aarch64-linux-gnu \n  " >> /etc/ld.so.conf.d/aarch64-linux-gnu.conf && \
+    ldconfig
+
+CMD ["bash"]
