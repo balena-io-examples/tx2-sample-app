@@ -1,0 +1,37 @@
+FROM balenalib/jetson-xavier-ubuntu:bionic-run as gstbuild
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN \
+  apt-get update && \
+  apt-get install --no-install-recommends -y \
+  lbzip2 \
+  wget \
+  tar \
+  gstreamer1.0-tools \
+  gstreamer1.0-alsa \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  libgstreamer-plugins-good1.0-dev \
+  libgstreamer-plugins-bad1.0-dev \
+  libgstreamer1.0-dev \
+  libgstreamer-plugins-base1.0-dev \
+  xorg
+
+RUN \
+    cd /tmp/ && \
+    wget https://developer.nvidia.com/embedded/dlc/Jetson_Linux_R32.2.0-0 && \
+    tar xf Jetson_Linux_R32.2.0-0 && rm Jetson_Linux_R32.2.0-0 && \
+    cd Linux_for_Tegra && \
+    sed -i 's/tar -I lbzip2 -xpmf ${LDK_NV_TEGRA_DIR}\/config.tbz2/& \-\-exclude=etc\/hosts \-\-exclude=etc\/hostname/' apply_binaries.sh && \
+    ./apply_binaries.sh -r / && \
+    cd .. && \
+    rm -rf Linux_for_Tegra && \
+    echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && \
+    ldconfig
+
+
+CMD ["bash"]
