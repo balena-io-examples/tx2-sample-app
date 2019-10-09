@@ -1,0 +1,56 @@
+FROM balenalib/jetson-tx2-ubuntu:xenial
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN \
+  apt-get update && apt-get install -y wget lbzip2 bzip2 tar && \
+  wget https://developer.download.nvidia.com/devzone/devcenter/mobile/jetpack_l4t/3.2.1/m8u2ki/JetPackL4T_321_b23/Tegra186_Linux_R28.2.1_aarch64.tbz2 && \
+  tar -xf Tegra186_Linux_R28.2.1_aarch64.tbz2 && \
+  ./Linux_for_Tegra/apply_binaries.sh -r / && \
+  rm Tegra186_Linux_R28.2.1_aarch64.tbz2 && \
+  echo "/usr/lib/aarch64-linux-gnu/tegra" > /etc/ld.so.conf.d/nvidia-tegra.conf && ldconfig && \
+  ln -s /usr/lib/aarch64-linux-gnu/tegra-egl/libEGL.so.1 /usr/lib/aarch64-linux-gnu/libEGL.so.1
+
+# Some precompiled libs need old libgbm, as default libgbm1 18.X will not find drmGetDevice2 or similar
+# Also, this RUN part can be removed entirely if gst is not used, to keep the image size low
+RUN \
+  apt-get install -y gstreamer1.0-tools \
+  gstreamer1.0-alsa \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  libgstreamer-plugins-good1.0-dev \
+  libgstreamer-plugins-bad1.0-dev \
+  libgstreamer1.0-dev \
+  libgstreamer-plugins-base1.0-dev && \
+  apt-get install -y --allow-downgrades libgbm1=11.2.0-1ubuntu2
+
+RUN apt-get install -y gstreamer1.0-plugins-bad xorg \
+  xserver-xorg-input-evdev \
+  xinit \
+  xfce4 \
+  xfce4-terminal \
+  x11-xserver-utils \
+  dbus-x11 \
+  xterm
+
+ENV LD_LIBRARY_PATH=/usr/lib/aarch64-linux-gnu/tegra
+
+# HostOS for TX2 adds dummy0 before entry.sh gets to check
+# for privileged container. Switch to old type of check for now
+RUN \
+  sed -i 's/ip link delete dummy0 &> \/dev\/null/ /g' /usr/bin/entry.sh && \
+  sed -i 's/ip link add dummy0 type dummy \&> \/dev\/null/hostname \"$HOSTNAME\" \&> \/dev\/null /g' /usr/bin/entry.sh && \
+  sed -i 's/# clean the dummy0 link/ /g' /usr/bin/entry.sh
+
+ENV UDEV=1
+
+# Avoid requesting XFCE4 question on X start
+ENV XFCE_PANEL_MIGRATE_DEFAULT=1
+
+CMD ["bash"]
+
+# In container, issue "startx" to start xfce interface, or, to check accelerated decoding with gstreamer run:
+# gst-launch-1.0 videotestsrc ! 'video/x-raw, format=(string)I420,width=(int)640, height=(int)480' ! omxh264enc ! 'video/x-h264, stream-format=(string)byte-stream' ! h264parse ! omxh264dec ! nvoverlaysink -e
