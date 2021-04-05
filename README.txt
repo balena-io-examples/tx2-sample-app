@@ -1,3 +1,7 @@
+IMPORTANT: These sample applications are now deprecated.
+
+For graphics, gstreamer and cuda examples please have a look at the newer L4T 32.4.4 repository at https://github.com/balena-io-examples/jetson-examples
+
 STEPS FOR RUNNING THESE SAMPLE APPS FOR JETSON TX2 Jetpack 4.2.1 (L4T 32.2)
 
 CUDA 10 Samples:
